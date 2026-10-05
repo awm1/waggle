@@ -65,12 +65,24 @@ function kanal(): string {
     return substr(hash('sha256', 'waggle-library|' . $SESSION), 0, 32);
 }
 
+/* Klíč pro podpis push dávky. Odvozuje se stejně jako kanál, ale s JINÝM
+   semínkem: token kanálu zná každý, kdo do něj může přihlásit (je to
+   nchan_channel_id), klíč ke klientovi jde jen příkazem subscribe.
+   Podepsanou dávku tím, kdo token zná, nevyrobí — viz docs/10, "Podepsaná dávka". */
+function klic(): string {
+    global $SESSION;
+    if ($SESSION === '' || NCHAN_PUB === '') return '';
+    return substr(hash('sha256', 'waggle-library-klic|' . $SESSION), 0, 64);
+}
+
 /* Průběh dlouhé operace. Bez nchanu se nic nestane a to je v pořádku —
-   kolečko ukáže prohlížeč sám přes data-busy, jen bez procent. */
+   kolečko ukáže prohlížeč sám přes data-busy, jen bez procent.
+   Dávka je podepsaná: bez klíče by prošli jen příkazy z nepodepsané sady
+   a integrita by se neověřila. */
 function prubeh(string $text, ?int $pct = null): void {
     $k = kanal();
     if ($k === '') return;
-    if (!fw_publish(NCHAN_PUB, $k, [fw_busy('main', $text, $pct)]))
+    if (!fw_publish(NCHAN_PUB, $k, [fw_busy('main', $text, $pct)], 2.0, klic()))
         error_log('[library-bff] nchan neodpovídá na ' . NCHAN_PUB . ', průběh se posílat nebude');
 }
 
@@ -102,7 +114,8 @@ function obrazovka(string $telo, array $vars = []): array {
        nevadí. Nepřihlášenému se neposílá nic — nemá kanál. */
     if (me() !== null && NCHAN_SUB !== '' && NCHAN_PUB !== '')
         $cmds[] = ['op' => 'subscribe', 'name' => 'main',
-                   'url' => NCHAN_SUB, 'token' => kanal()];
+                   'url' => NCHAN_SUB, 'token' => kanal(),
+                   'key' => klic()];   // klíč pro ověření podpisu, jen touto cestou
 
     return $cmds;
 }

@@ -19,13 +19,18 @@ function stream_sub_url(): string {
 /* Token pro dvojici (session, kanál). Jednoúčelový a neuhodnutelný —
    session token by skončil v access logu nginxu.
 
-   POZOR, tohle je DEMO úložiště. Dva souběžné požadavky si můžou
-   navzájem přepsat soubor, protože tu není zamykání. V produkci sem
-   patří Redis nebo databáze, ne JSON na disku. */
+   POZOR, tohle je DEMO úložiště (JSON na disku). V produkci sem patří
+   Redis nebo databáze. Aby se souběžné požadavky nepřepsaly (read-modify-
+   write závod), čte se i píše pod flockem — čtení i zápis jdou přes
+   LOCK_SH/LOCK_EX, takže se zápisům navzájem nekrčí. */
 function stream_token(string $session, string $name, string $co = 't'): string {
     if ($session === '' || !is_word($name)) return '';
 
-    $all = json_decode((string)@file_get_contents(STREAM_STORE), true);
+    $fh = @fopen(STREAM_STORE, 'c+');
+    if ($fh === false) return '';   // nepíšete, nevrátíme nic — publish se nezahodí, jen se nezakládá
+    flock($fh, LOCK_EX);
+
+    $all = json_decode((string)stream_get_contents($fh), true);
     if (!is_array($all)) $all = [];
 
     $now = time();
@@ -37,7 +42,12 @@ function stream_token(string $session, string $name, string $co = 't'): string {
     if (!isset($all[$key]['k'])) $all[$key]['k'] = bin2hex(random_bytes(32));
     $all[$key]['exp'] = $now + STREAM_TTL;
 
-    file_put_contents(STREAM_STORE, json_encode($all));
+    ftruncate($fh, 0);
+    rewind($fh);
+    fwrite($fh, json_encode($all));
+    fflush($fh);
+    flock($fh, LOCK_UN);
+    fclose($fh);
     return $all[$key][$co];
 }
 
