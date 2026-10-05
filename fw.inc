@@ -69,7 +69,12 @@ function fw_start_output(): void {
  *  patří vyplnit. Díra to sama o sobě není: token sezení jde hlavičkou
  *  a leží v localStorage, takže cizí stránka se k němu nedostane a
  *  dostane jen přihlašovací obrazovku. U aplikace, která se drží cookie
- *  (typicky migrovaný monolit), je to ale zásadní rozdíl.
+ *  (typicky migrovaný monolit), je to ale zásadní rozdíl — a proto se
+ *  v režimu '*' hlavička Access-Control-Allow-Credentials NEPOSÍLÁ.
+ *  Bez ní prohlížeč cross-origin request s cookie vůbec nepustí, takže
+ *  se '*' nemůže tiše proměnit v credentialed-CORS jen tím, že do stacku
+ *  někde přijde cookie. Kdo explicitně potřebuje '*' + credentialed,
+ *  definuje FW_CORS_CREDENTIALS=true s vědomím, co dělá.
  *
  *  Odpovědnost se tím přenáší na toho, kdo nasazuje, a to je správně —
  *  jen on ví, kolik hostů má a jak se jmenují. */
@@ -77,7 +82,8 @@ function fw_cors(): void {
     $o = in_header('Origin');
     if ($o === '') return;
 
-    if (FW_CORS !== '*') {
+    $wildcard = FW_CORS === '*';
+    if (!$wildcard) {
         $ok = false;
         foreach (explode(',', FW_CORS) as $p)
             if (rtrim(trim($p), '/') === rtrim($o, '/')) { $ok = true; break; }
@@ -91,7 +97,21 @@ function fw_cors(): void {
         }
     }
     header('Access-Control-Allow-Origin: ' . $o);
-    header('Access-Control-Allow-Credentials: true');
+    /* Credentialed jen u allowlistu — u '*' by cizí origin čítal cookie.
+       Allowlist je správný výchozí režim; '*' je zpětná kompatibilita. */
+    if (!$wildcard
+        || (defined('FW_CORS_CREDENTIALS') && FW_CORS_CREDENTIALS === true))
+        header('Access-Control-Allow-Credentials: true');
+    if ($wildcard) {
+        /* Varování jednou za proces, ne na každý požadavek — a jen když
+           Origin vůbec přišel, takže same-origin provoz nic nedostane. */
+        static $warned = false;
+        if (!$warned) {
+            $warned = true;
+            error_log('[fw] FW_CORS je výchozí "*" — na produkci vyplňte '
+                    . 'seznam adres (FW_CORS). Běží bez Allow-Credentials.');
+        }
+    }
     header('Vary: Origin');
 }
 
