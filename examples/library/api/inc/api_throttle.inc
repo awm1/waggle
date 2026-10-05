@@ -35,10 +35,14 @@ function throttle_check(string $login): void {
         $a = (int)$r->get(REDIS_PREFIX . 'fail.' . $kip);
         $b = (int)$r->get(REDIS_PREFIX . 'fail.' . $kuser);
     } else {
-        $a = (int)q_val("SELECT COUNT(*) FROM login_fails WHERE lf_key=? AND lf_when > NOW() - INTERVAL ? SECOND",
-                        [$kip, (int)LOGIN_FAIL_WINDOW]);
-        $b = (int)q_val("SELECT COUNT(*) FROM login_fails WHERE lf_key=? AND lf_when > NOW() - INTERVAL ? SECOND",
-                        [$kuser, (int)LOGIN_FAIL_WINDOW]);
+        /* Hranice okna se počítá na PHP a do SQL jde jen DATETIME —
+           INTERVAL ? SECOND s bound parametrem není v prepared statementech
+           portabilní (viz issue #8). */
+        $hranice = date('Y-m-d H:i:s', time() - (int)LOGIN_FAIL_WINDOW);
+        $a = (int)q_val("SELECT COUNT(*) FROM login_fails WHERE lf_key=? AND lf_when > ?",
+                        [$kip, $hranice]);
+        $b = (int)q_val("SELECT COUNT(*) FROM login_fails WHERE lf_key=? AND lf_when > ?",
+                        [$kuser, $hranice]);
     }
     if ($a >= $limity['ip'] || $b >= $limity['user'])
         api_error(429, 'Příliš mnoho pokusů o přihlášení. Zkuste to za chvíli.');
@@ -62,8 +66,8 @@ function throttle_fail(string $login): void {
        disk a útočník tě tím škrtičem udusí — ochrana by se stala
        zesilovačem. Takhle je počet zápisů zastropovaný. */
     foreach ([$kip => (int)LOGIN_FAIL_PER_IP, $kuser => (int)LOGIN_FAIL_PER_USER] as $k => $limit) {
-        $n = (int)q_val("SELECT COUNT(*) FROM login_fails WHERE lf_key=? AND lf_when > NOW() - INTERVAL ? SECOND",
-                        [$k, (int)LOGIN_FAIL_WINDOW]);
+        $n = (int)q_val("SELECT COUNT(*) FROM login_fails WHERE lf_key=? AND lf_when > ?",
+                        [$k, date('Y-m-d H:i:s', time() - (int)LOGIN_FAIL_WINDOW)]);
         if ($n < $limit) q("INSERT INTO login_fails (lf_key) VALUES (?)", [$k]);
     }
 }

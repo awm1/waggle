@@ -44,7 +44,8 @@ function session_store_get(string $key): ?array {
         return is_array($d) ? $d : null;
     }
     $row = q_one("SELECT se_data FROM sessions
-                  WHERE se_key=? AND se_touched > NOW() - INTERVAL ? SECOND", [$key, (int)SESSION_TTL]);
+                  WHERE se_key=? AND se_touched > ?",
+                 [$key, date('Y-m-d H:i:s', time() - (int)SESSION_TTL)]);
     if (!$row) return null;
     q("UPDATE sessions SET se_touched=NOW() WHERE se_key=?", [$key]);
     $d = json_decode((string)$row['se_data'], true);

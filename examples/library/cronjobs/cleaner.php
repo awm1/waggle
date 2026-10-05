@@ -62,13 +62,15 @@ if (!$mam_api) {
     try {
         $db = new PDO(DB_DSN, DB_USER, DB_PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 
-        $s = $db->prepare("DELETE FROM sessions WHERE se_touched < NOW() - INTERVAL ? SECOND");
-        $s->execute([(int)SESSION_TTL]);
+        /* Hranice se počítá na PHP a do SQL jde jen DATETIME —
+           INTERVAL ? SECOND není v prepared statementech portabilní. */
+        $s = $db->prepare("DELETE FROM sessions WHERE se_touched < ?");
+        $s->execute([date('Y-m-d H:i:s', time() - (int)SESSION_TTL)]);
         $n = $s->rowCount(); $smazano += $n;
         hlas("sezení: $n");
 
-        $s = $db->prepare("DELETE FROM login_fails WHERE lf_when < NOW() - INTERVAL ? SECOND");
-        $s->execute([(int)LOGIN_FAIL_WINDOW]);
+        $s = $db->prepare("DELETE FROM login_fails WHERE lf_when < ?");
+        $s->execute([date('Y-m-d H:i:s', time() - (int)LOGIN_FAIL_WINDOW)]);
         $n = $s->rowCount(); $smazano += $n;
         hlas("počítadel přihlášení: $n");
     } catch (Throwable $e) {

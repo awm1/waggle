@@ -106,9 +106,12 @@ function ep_rental_rent(): void {
             db()->rollBack();
             api_error(400, 'Všechny kusy téhle knihy jsou půjčené');
         }
+        /* Termín vrácení se počítá na PHP a do SQL jde jen DATETIME —
+           INTERVAL ? SECOND/DAY není v prepared statementech portabilní. */
+        $termín = date('Y-m-d', time() + $dnu * 86400);
         q("INSERT INTO rentals (re_user, re_book, re_operation, re_date, re_price, re_allowed_return_date, re_note)
-           VALUES (?,?,'rent',NOW(),?,DATE_ADD(CURDATE(), INTERVAL ? DAY),?)",
-          [$user, $kniha, $cena, $dnu, $note]);
+           VALUES (?,?,'rent',NOW(),?,?,?)",
+          [$user, $kniha, $cena, $termín, $note]);
         $id = (int)db()->lastInsertId();
         db()->commit();
     } catch (Throwable $e) {
