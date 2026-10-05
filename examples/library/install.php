@@ -54,8 +54,29 @@ if (is_file(CFG_API))
           . 'Jestli chceš instalovat znovu, smaž ho ručně; tenhle instalák '
           . 'hotovou instalaci nepřepíše, aby ji nešlo přepsat zvenčí.';
 
-$https = ($_SERVER['HTTPS'] ?? '') !== '' || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'
-         || in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true);
+/* Je spojení šifrované? Rozhoduje to, co server SÁM ví o spojení, nebo
+   hlavička X-Forwarded-Proto — ale TA jen od konfigurovaného trusted-proxy.
+
+   X-Forwarded-Proto si nastaví libovolný volající, takže bez kontroly
+   trusted-proxy ji nelze věřit: za proxy, která hlavičky forwarduje,
+   by útočník poslal `X-Forwarded-Proto: https` na http:// adrese a obešel
+   tuhle kontrolu (fresh instalaci pak zprovozní první, kdo URL najde).
+
+   INSTALL_TRUSTED_PROXIES je seznam IP adres proxy, které stojí PŘÍMĚ
+   před tímto webserverem a hlavičku správně plní (např. ['10.0.0.5']).
+   Prázdné = X-Forwarded-Proto nevěřit vůbec — pak platí jen to, co server
+   sám drží (HTTPS/REMOTE_PORT/localhost). Přepíše se definicí před načtením.
+   */
+if (!defined('INSTALL_TRUSTED_PROXIES'))
+    define('INSTALL_TRUSTED_PROXIES', []);
+
+$remote       = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+$proxied      = in_array($remote, INSTALL_TRUSTED_PROXIES, true);
+$directTls    = (($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off')
+             || (int)($_SERVER['REMOTE_PORT'] ?? 0) === 443;
+$proxiedTls   = $proxied && ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+$https        = $directTls || in_array($remote, ['127.0.0.1', '::1'], true) || $proxiedTls;
+
 if ($blok === null && !$https)
     $blok = 'Tohle spojení není zabezpečené. Do formuláře se píše heslo k databázi '
           . 'a po nezašifrovaném spojení ho přečte každý po cestě. '
