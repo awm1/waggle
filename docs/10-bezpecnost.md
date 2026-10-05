@@ -325,8 +325,11 @@ Token jde v hlavičce `X-App-Session`, **nikdy v URL**. V URL by skončil
 v access logu, v `Referer` při odchodu na cizí web, v historii prohlížeče
 a v cache proxy.
 
-Demo váže token na `X-App-Serial`, takže odcizený token na jiném zařízení
-neprojde.
+Token je svázaný s identitou zařízení `X-App-Serial`: BFF ho předává
+backendu a ten ho při každém ověření porovnává s hodnotou podepsanou
+při přihlášení. Odcizený token na jiném zařízení (jiné nebo žádné
+sériové číslo) proto neprojde — platí pro obě ukázky, `basic_demo`
+i `library`.
 
 Trade-off: token v `localStorage` není chráněný proti XSS tak jako
 `HttpOnly` cookie. Protiváhou je důsledné `esc()` na výstupu a možnost

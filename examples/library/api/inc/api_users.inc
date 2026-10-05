@@ -68,10 +68,14 @@ function ep_do_login(): void {
 
     /* Sezení se zakládá tady, ale BLOK skládá session_block() — tedy
        to samé místo, které ho vrací i při session_check. Proto se
-       nemůžou rozejít. */
+       nemůžou rozejít. Identita zařízení se podepisuje do úložiště
+       sezení (session_store_put), ne do bloku — viz tam. */
+    $serial = in_header('X-App-Serial', 128);
+    if ($serial === '')
+        api_error(400, 'Chybí identifikace zařízení (X-App-Serial)');
     $key   = session_new_key();
     $block = session_block($u);
-    session_store_put($key, $block);
+    session_store_put($key, $block, $serial);
 
     /* 5. odpověď */
     api_out(['session' => $key, 'me' => $block]);

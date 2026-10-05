@@ -52,11 +52,17 @@ function api_handle() {
 /* Zavolá endpoint. Vrací [http_kód, data]. Kód 0 znamená, že se
    nepodařilo ani spojit — tedy NE chybu aplikace, ale výpadek. */
 function api_raw(string $fn, array $args = [], string $session = ''): array {
+    global $SERIAL;
     $ch = api_handle();
     curl_setopt($ch, CURLOPT_URL, rtrim(API_URL, '/') . '/?fn=' . urlencode($fn));
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($args));
+    /* Sezení putuje s identitou zařízení: backend token ověřuje a zároveň
+       porovnává s X-App-Serial, podepsaným při přihlášení (viz api_session).
+       Bez serialu by sezení z jiného zařízení neprošlo. */
     curl_setopt($ch, CURLOPT_HTTPHEADER,
-        $session !== '' ? ['X-App-Session: ' . $session, 'Expect:'] : ['Expect:']);
+        $session !== ''
+        ? ['X-App-Session: ' . $session, 'X-App-Serial: ' . (string)($SERIAL ?? ''), 'Expect:']
+        : ['Expect:']);
 
     $body = curl_exec($ch);
     if ($body === false) {

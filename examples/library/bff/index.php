@@ -47,6 +47,7 @@ if ($origin !== '') {
 }
 
 $SESSION  = in_header('X-App-Session');
+$SERIAL   = in_header('X-App-Serial', 128);   // identita zařízení, podepisuje sezení
 $function = in_str('function', 64);
 if ($function === '') $function = 'index';
 if (!is_word($function)) throw_http_error(400, 'Neplatný název obrazovky');

@@ -22,7 +22,12 @@ function session_new_key(): string { return bin2hex(random_bytes(32)); }
 
 /* --------------------------------------------------------------------- */
 
-function session_store_put(string $key, array $data): void {
+function session_store_put(string $key, array $data, string $serial = ''): void {
+    /* Identita zařízení putuje SŘÍDLOM sezení, ne v bloku pro BFF:
+       session_check blok vrací explicitně a se_serial by se dostalo
+       do cache souborů BFF a pak i do localStorage. Tady je jen
+       v úložišti, odkud ho čte session_require() a nikam neposílá. */
+    $data['se_serial'] = $serial;
     $json = json_encode($data, JSON_UNESCAPED_UNICODE);
     if ($r = redis()) {
         $r->setex(REDIS_PREFIX . 'ses.' . $key, (int)SESSION_TTL, $json);
@@ -83,6 +88,16 @@ function session_require(): array {
     $d = session_store_get($key);
     if ($d === null) api_error(401, 'Sezení vypršelo, přihlaste se prosím znovu');
 
+    /* Token je svázaný s identitou zařízení: X-App-Serial, které přišlo,
+       musí odpovídat tomu, které bylo podepsáno při přihlášení. Odcizený
+       token na jiném zařízení (jiné nebo žádné sériové číslo) proto
+       neprojde — viz docs/10, sekce Session. hash_equals, aby porovnání
+       nependělo na délce vstupu (timing). */
+    $serial = in_header('X-App-Serial', 128);
+    if ($serial === '' || !hash_equals((string)($d['se_serial'] ?? ''), $serial))
+        api_error(401, 'Sezení nepatří tomuto zařízení, přihlaste se znovu');
+
+    unset($d['se_serial']);
     $d['session'] = $key;
     return $d;
 }
