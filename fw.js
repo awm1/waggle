@@ -125,14 +125,30 @@ Fw.register('remove', function (c) {
    dokumentace tvrdí, totiž že příkaz na vyhodnocení kódu neexistuje. */
 var ATTR_ZAKAZANE = /^on/i;                              // onclick, onerror, …
 var ATTR_URL      = /^(href|src|action|formaction|xlink:href)$/i;
-var URL_ZAKAZANE  = /^[\s\u0000-\u001f]*(javascript|vbscript|data)\s*:/i;
+/* Ověření URL: blocklist zakázaných schémat (javascript|vbscript|data)
+   je slabý — encoding, BOM nebo velká písmena ho obejdou a ověření stojí
+   jen na tom, že útočník nenajde formu, kterou ^[...] nepustí. Místo toho
+   odhalíme LIBOVOLNÉ schéma (podle RFC 3986: písmeno, pak [a-z0-9+.-],
+   pak ':') a povolit můžeme jen ty, co známe a držíme za bezpečné.
+   Hodnoty bez schématu (relativní cesta, #fragment, //host, ./x) schéma
+   nemají, takže projdou — přesně to, co href/src v běžné aplikaci nosí. */
+var URL_SCHEMA    = /^[a-z][a-z0-9+.-]*:/i;              // jakékoli schéma
+var URL_POVOLENA  = /^(https?|mailto|tel):/i;            // jen tyhle
+
+function urlJeBezpecne(string) {
+    /* Provedeme stejné čištění jako prohlížeče: na začátku se ignoruje
+       bílé i ovládací znaky a BOM, ať se schéma neschová za nimi. */
+    var v = String(string).replace(/^[\s\u0000-\u001f\ufeff]+/, '');
+    if (!URL_SCHEMA.test(v)) return true;                 // žádné schéma -> relativní/fragment
+    return URL_POVOLENA.test(v);                          // schéma -> musí být povolené
+}
 
 Fw.register('attr', function (c) {
     var jm = String(c.name || '');
     if (ATTR_ZAKAZANE.test(jm) || jm.toLowerCase() === 'srcdoc') {
         Fw.warn('attr: atribut ' + jm + ' je zakázaný'); return;
     }
-    if (c.value !== null && ATTR_URL.test(jm) && URL_ZAKAZANE.test(String(c.value))) {
+    if (c.value !== null && ATTR_URL.test(jm) && !urlJeBezpecne(c.value)) {
         Fw.warn('attr: nepovolené schéma v ' + jm); return;
     }
     Fw.nodes(c.sel).forEach(function (el) {
