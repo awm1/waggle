@@ -3,6 +3,10 @@
 # demo přestěhuje.
 examples/basic_demo/bff/data/*.json
 
+# Tajný klíč pro podepisování session — vygeneruje se jednou do data/
+# (auth.inc), tvrdě v gitu se neměl nikdy vyskytovat.
+examples/basic_demo/bff/data/*.key
+
 # Nastavení KONKRÉTNÍ instalace příkladu — hesla k databázi v čitelné
 # podobě. Do gitu patří jen config.example.*, ze kterých je instalák dělá.
 examples/library/api/config.inc

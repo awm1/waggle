@@ -11,7 +11,14 @@
 define('FW_DEBUG', true);          // chybová hláška prozradí cesty na disku
 
 /* ---- přihlášení --------------------------------------------------- */
-define('AUTH_SECRET', 'demo-secret-zmen-me-v-produkci');
+/* AUTH_SECRET — tajný klíč pro podepisování session.
+   Ponechte ho VYNECHANÉ (nebo prázdné): auth.inc ho vygeneruje jednou
+   a uloží do data/ (mimo git — viz .gitignore). Demo tím zůstává
+   okamžitě spustitelné, aniž by tajný klíč končil v repozitáři.
+   V produkci klíč spravujte sami — definujte AUTH_SECRET explicitně,
+   nejlépe z environment, např.
+       define('AUTH_SECRET', (string)getenv('WAGGLE_AUTH_SECRET'));
+   Nikdy sem neukládejte tvrdé tajné klíče. */
 define('AUTH_TTL',    3600);
 
 /* ---- push kanály -------------------------------------------------- */
